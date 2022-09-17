@@ -1,5 +1,3 @@
-extern crate core;
-
 use std::cmp;
 use std::fmt;
 use std::io::BufRead;
@@ -7,11 +5,14 @@ use std::process::exit;
 
 const BOARD_UTF8_SYMBOLS_IN_ROW: u8 = 13;
 const BOARD_ROWS: u8 = 7;
+const INIT_REWARD: i32 = 1000;
+const REWARD: i32 = 10;
+const FIELD_SIZE: usize = 3;
 
 trait MinimaxGame {
     fn computer_move(&mut self);
     fn evaluate(&self) -> i32;
-    fn minimax(&mut self, depth: i32, is_max: bool) -> i32;
+    fn minimax(&mut self, depth: i32) -> i32;
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -46,15 +47,15 @@ impl MinimaxGame for Board {
             panic!("No free tiles!");
         }
 
-        let mut best_val = -1000;
+        let mut best_val = -INIT_REWARD;
         let mut best_move = (0, 0);
 
-        for i in 0..3 {
-            for j in 0..3 {
+        for i in 0..FIELD_SIZE {
+            for j in 0..FIELD_SIZE {
                 if self.field[i][j] == Tile::Free {
                     self.field[i][j] = self.computer_tile;
 
-                    let move_val = self.minimax(0, false);
+                    let move_val = self.minimax(0);
 
                     self.field[i][j] = Tile::Free;
 
@@ -70,19 +71,19 @@ impl MinimaxGame for Board {
     }
     fn evaluate(&self) -> i32 {
         match self.analyse() {
-            Some(GameState::Win(Move::Computer)) => 10,
-            Some(GameState::Win(Move::Player)) => -10,
+            Some(GameState::Win(Move::Computer)) => REWARD,
+            Some(GameState::Win(Move::Player)) => -REWARD,
             _ => 0,
         }
     }
-    fn minimax(&mut self, depth: i32, is_max: bool) -> i32 {
+    fn minimax(&mut self, depth: i32) -> i32 {
         let score = self.evaluate();
 
-        if score == 10 {
+        if score == REWARD {
             return score - depth;
         }
 
-        if score == -10 {
+        if score == -REWARD {
             return score + depth;
         }
 
@@ -90,49 +91,52 @@ impl MinimaxGame for Board {
             return 0;
         }
 
-        if is_max {
-            let mut best = -1000;
+        self.change_player();
 
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.computer_tile;
-                        self.change_player();
+        let mut best;
 
-                        best = cmp::max(best, self.minimax(depth + 1, !is_max));
+        match self.current_move {
+            Move::Player => {
+                best = INIT_REWARD;
 
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
+                for i in 0..FIELD_SIZE {
+                    for j in 0..FIELD_SIZE {
+                        if self.field[i][j] == Tile::Free {
+                            self.field[i][j] = self.player_tile;
+
+                            best = cmp::min(best, self.minimax(depth + 1));
+
+                            self.field[i][j] = Tile::Free;
+                        }
                     }
                 }
             }
+            Move::Computer => {
+                best = -INIT_REWARD;
 
-            best
-        } else {
-            let mut best = 1000;
+                for i in 0..FIELD_SIZE {
+                    for j in 0..FIELD_SIZE {
+                        if self.field[i][j] == Tile::Free {
+                            self.field[i][j] = self.computer_tile;
 
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.player_tile;
-                        self.change_player();
+                            best = cmp::max(best, self.minimax(depth + 1));
 
-                        best = cmp::min(best, self.minimax(depth + 1, !is_max));
-
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
+                            self.field[i][j] = Tile::Free;
+                        }
                     }
                 }
             }
-
-            best
         }
+
+        self.change_player();
+
+        best
     }
 }
 
 impl Board {
     fn analyse(&self) -> Option<GameState> {
-        for row in 0..3 {
+        for row in 0..FIELD_SIZE {
             if self.field[row][0] == self.field[row][1]
                 && self.field[row][1] == self.field[row][2]
                 && self.field[row][0] != Tile::Free
@@ -141,7 +145,7 @@ impl Board {
             }
         }
 
-        for col in 0..3 {
+        for col in 0..FIELD_SIZE {
             if self.field[0][col] == self.field[1][col]
                 && self.field[1][col] == self.field[2][col]
                 && self.field[0][col] != Tile::Free
@@ -175,10 +179,10 @@ impl Board {
             if self.field[row][col] == Tile::Free {
                 Ok((row, col))
             } else {
-                Err("Choose free tile!")
+                Err("choose free tile!")
             }
         } else {
-            Err("Place tile in bounds (0 <= col <= 2, 0 <= row <= 2)!")
+            Err("place tile in bounds (0 <= col <= 2, 0 <= row <= 2)!")
         }
     }
     fn make_move(&mut self, (row, col): (usize, usize), tile: Tile) {
@@ -198,7 +202,7 @@ impl Board {
 
 impl fmt::Display for Board {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let mut repr: String = String::new();
+        let mut repr = String::new();
         repr.reserve((BOARD_UTF8_SYMBOLS_IN_ROW * BOARD_ROWS) as usize);
 
         for i in 0..self.field.len() {
@@ -224,7 +228,7 @@ impl fmt::Display for Board {
             }
         }
 
-        write!(f, "{}", repr).expect("Failed to represent Board");
+        write!(f, "{}", repr).expect("failed to represent Board");
 
         Ok(())
     }
@@ -244,7 +248,7 @@ fn parse_first_move(s: &str) -> Result<Move, &str> {
     match s.trim() {
         "p" | "P" => Ok(Move::Player),
         "c" | "C" => Ok(Move::Computer),
-        _ => Err("Please enter correct participant!"),
+        _ => Err("please enter correct participant!"),
     }
 }
 
@@ -257,23 +261,24 @@ fn parse_pos(s: &str) -> Option<(usize, usize)> {
 
 fn main() {
     let mut stdin = std::io::stdin().lock();
-    println!("Computer - C, Player - P");
-    println!("Enter who will play first: ");
+    println!("Computer -> C / c, Player -> P / p");
+    println!("Enter who will be first:");
     let first_move = loop {
         let mut first_player_line = String::new();
         stdin.read_line(&mut first_player_line).unwrap();
+
         match parse_first_move(&first_player_line) {
             Ok(first_move) => {
                 break first_move;
             }
             Err(error) => {
-                println!("{}", error)
+                println!("Input player: {}", error)
             }
         };
     };
 
     let mut board = Board {
-        field: vec![vec![Tile::Free; 3]; 3],
+        field: vec![vec![Tile::Free; FIELD_SIZE]; FIELD_SIZE],
         current_move: first_move,
         computer_tile: Tile::X,
         player_tile: Tile::O,
@@ -291,9 +296,9 @@ fn main() {
                     stdin.read_line(&mut line).unwrap();
 
                     let (row, col) = match parse_pos(&line) {
-                        Some((row, col)) => (row, col),
+                        Some((row, col)) => (row, col), //стоит ли inlinить второй match сюда?
                         None => {
-                            println!("Please enter correct move!");
+                            println!("Please enter correct move! (row, col)");
                             continue;
                         }
                     };
@@ -301,7 +306,7 @@ fn main() {
                     match board.check_move((row, col)) {
                         Ok((row, col)) => break (row, col),
                         Err(err) => {
-                            println!("{}", err);
+                            println!("Move input error: {}", err);
                             continue;
                         }
                     }
