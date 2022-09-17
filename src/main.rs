@@ -5,14 +5,14 @@ use std::fmt;
 use std::io::BufRead;
 use std::process::exit;
 
+const BOARD_UTF8_SYMBOLS_IN_ROW: u8 = 13;
+const BOARD_ROWS: u8 = 7;
+
 trait MinimaxGame {
     fn computer_move(&mut self);
     fn evaluate(&self) -> i32;
     fn minimax(&mut self, depth: i32, is_max: bool) -> i32;
 }
-
-const BOARD_UTF8_SYMBOLS_IN_ROW: u8 = 13;
-const BOARD_ROWS: u8 = 7;
 
 #[derive(PartialEq, Clone, Copy)]
 enum Tile {
@@ -194,93 +194,6 @@ impl Board {
             Move::Computer => Move::Player,
         }
     }
-
-    fn computer_player_move(&mut self) {
-        if !self.has_free_tiles() {
-            panic!("No free tiles!");
-        }
-        let mut best_val = -1000;
-        let mut best_move = (0, 0);
-
-        for i in 0..3 {
-            for j in 0..3 {
-                if self.field[i][j] == Tile::Free {
-                    self.field[i][j] = self.player_tile;
-
-                    let move_val = self.minimax_player(0, false);
-
-                    self.field[i][j] = Tile::Free;
-
-                    if move_val > best_val {
-                        best_move = (i, j);
-                        best_val = move_val;
-                    }
-                }
-            }
-        }
-
-        self.make_move(best_move, self.player_tile)
-    }
-    fn evaluate_player(&self) -> i32 {
-        match self.analyse() {
-            Some(GameState::Win(Move::Player)) => 10,
-            Some(GameState::Win(Move::Computer)) => -10,
-            _ => 0,
-        }
-    }
-    fn minimax_player(&mut self, depth: i32, is_max: bool) -> i32 {
-        let score = self.evaluate_player();
-
-        if score == 10 {
-            return score - depth;
-        }
-
-        if score == -10 {
-            return score + depth;
-        }
-
-        if !self.has_free_tiles() {
-            return 0;
-        }
-
-        if is_max {
-            let mut best = -1000;
-
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.player_tile;
-                        self.change_player();
-
-                        best = cmp::max(best, self.minimax_player(depth + 1, !is_max));
-
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
-                    }
-                }
-            }
-
-            best
-        } else {
-            let mut best = 1000;
-
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.computer_tile;
-                        self.change_player();
-
-                        best = cmp::min(best, self.minimax_player(depth + 1, !is_max));
-
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
-                    }
-                }
-            }
-
-            best
-        }
-    }
 }
 
 impl fmt::Display for Board {
@@ -386,7 +299,7 @@ fn main() {
                     };
 
                     match board.check_move((row, col)) {
-                        Ok(mv) => break mv,
+                        Ok((row, col)) => break (row, col),
                         Err(err) => {
                             println!("{}", err);
                             continue;
@@ -422,116 +335,5 @@ fn main() {
         _ => {
             println!("{:?} won!", board.current_move)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use crate::{Board, GameState, MinimaxGame, Move, Tile};
-
-    #[test]
-    fn test_win_move() {
-        let mut board = Board {
-            field: vec![
-                vec![Tile::Free, Tile::X, Tile::X],
-                vec![Tile::X, Tile::O, Tile::O],
-                vec![Tile::O, Tile::O, Tile::Free],
-            ],
-            current_move: Move::Computer,
-            computer_tile: Tile::X,
-            player_tile: Tile::O,
-        };
-        board.computer_move();
-        println!("{}", board);
-        assert!(board.field[0][0] == board.computer_tile);
-    }
-
-    #[test]
-    fn test_block_move() {
-        let mut board = Board {
-            field: vec![
-                vec![Tile::O, Tile::Free, Tile::X],
-                vec![Tile::Free, Tile::X, Tile::O],
-                vec![Tile::O, Tile::O, Tile::X],
-            ],
-            current_move: Move::Computer,
-            computer_tile: Tile::X,
-            player_tile: Tile::O,
-        };
-        board.computer_move();
-        println!("{}", board);
-        assert!(board.field[1][0] == board.computer_tile);
-    }
-
-    #[test]
-    fn pc_vs_pc_1move_by_player() {
-        let first_moves = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
-        let mut results: Vec<GameState> = vec![];
-        for first_move in first_moves {
-            let row = first_move / 3;
-            let col = first_move % 3;
-            let mut board = Board {
-                field: vec![
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                ],
-                current_move: Move::Computer,
-                computer_tile: Tile::X,
-                player_tile: Tile::O,
-            };
-            board.field[row][col] = board.player_tile;
-            for _ in 0..8 {
-                match board.current_move {
-                    Move::Player => {
-                        board.computer_player_move();
-                    }
-                    Move::Computer => {
-                        board.computer_move();
-                    }
-                }
-                board.change_player();
-            }
-
-            results.push(board.analyse().unwrap());
-        }
-
-        assert!(results.iter().any(|r| *r == GameState::Draw));
-    }
-
-    #[test]
-    fn pc_vs_pc_1move_by_computer() {
-        let first_moves = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
-        let mut results: Vec<GameState> = vec![];
-        for first_move in first_moves {
-            let row = first_move / 3;
-            let col = first_move % 3;
-            let mut board = Board {
-                field: vec![
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                    vec![Tile::Free, Tile::Free, Tile::Free],
-                ],
-                current_move: Move::Player,
-                computer_tile: Tile::X,
-                player_tile: Tile::O,
-            };
-            board.field[row][col] = board.computer_tile;
-            for _ in 0..8 {
-                match board.current_move {
-                    Move::Player => {
-                        board.computer_player_move();
-                    }
-                    Move::Computer => {
-                        board.computer_move();
-                    }
-                }
-                board.change_player();
-            }
-
-            results.push(board.analyse().unwrap());
-        }
-
-        assert!(results.iter().any(|r| *r == GameState::Draw));
     }
 }
