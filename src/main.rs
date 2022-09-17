@@ -464,7 +464,7 @@ mod tests {
     }
 
     #[test]
-    fn pc_vs_pc() {
+    fn pc_vs_pc_1move_by_player() {
         let first_moves = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
         let mut results: Vec<GameState> = vec![];
         for first_move in first_moves {
@@ -481,6 +481,42 @@ mod tests {
                 player_tile: Tile::O,
             };
             board.field[row][col] = board.player_tile;
+            for _ in 0..8 {
+                match board.current_move {
+                    Move::Player => {
+                        board.computer_player_move();
+                    }
+                    Move::Computer => {
+                        board.computer_move();
+                    }
+                }
+                board.change_player();
+            }
+
+            results.push(board.analyse().unwrap());
+        }
+
+        assert!(results.iter().any(|r| *r == GameState::Draw));
+    }
+
+    #[test]
+    fn pc_vs_pc_1move_by_computer() {
+        let first_moves = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
+        let mut results: Vec<GameState> = vec![];
+        for first_move in first_moves {
+            let row = first_move / 3;
+            let col = first_move % 3;
+            let mut board = Board {
+                field: vec![
+                    vec![Tile::Free, Tile::Free, Tile::Free],
+                    vec![Tile::Free, Tile::Free, Tile::Free],
+                    vec![Tile::Free, Tile::Free, Tile::Free],
+                ],
+                current_move: Move::Player,
+                computer_tile: Tile::X,
+                player_tile: Tile::O,
+            };
+            board.field[row][col] = board.computer_tile;
             for _ in 0..8 {
                 match board.current_move {
                     Move::Player => {
