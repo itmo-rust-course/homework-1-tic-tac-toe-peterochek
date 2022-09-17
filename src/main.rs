@@ -5,6 +5,12 @@ use std::fmt;
 use std::io::BufRead;
 use std::process::exit;
 
+trait MinimaxGame {
+    fn computer_move(&mut self);
+    fn evaluate(&self) -> i32;
+    fn minimax(&mut self, depth: i32, is_max: bool) -> i32;
+}
+
 const BOARD_UTF8_SYMBOLS_IN_ROW: u8 = 13;
 const BOARD_ROWS: u8 = 7;
 
@@ -21,6 +27,7 @@ enum Move {
     Computer,
 }
 
+#[derive(Debug, PartialEq)]
 enum GameState {
     Win(Move),
     Draw,
@@ -31,6 +38,96 @@ struct Board {
     current_move: Move,
     computer_tile: Tile,
     player_tile: Tile,
+}
+
+impl MinimaxGame for Board {
+    fn computer_move(&mut self) {
+        if !self.has_free_tiles() {
+            panic!("No free tiles!");
+        }
+
+        let mut best_val = -1000;
+        let mut best_move = (0, 0);
+
+        for i in 0..3 {
+            for j in 0..3 {
+                if self.field[i][j] == Tile::Free {
+                    self.field[i][j] = self.computer_tile;
+
+                    let move_val = self.minimax(0, false);
+
+                    self.field[i][j] = Tile::Free;
+
+                    if move_val > best_val {
+                        best_move = (i, j);
+                        best_val = move_val;
+                    }
+                }
+            }
+        }
+
+        self.make_move(best_move, self.computer_tile)
+    }
+    fn evaluate(&self) -> i32 {
+        match self.analyse() {
+            Some(GameState::Win(Move::Computer)) => 10,
+            Some(GameState::Win(Move::Player)) => -10,
+            _ => 0,
+        }
+    }
+    fn minimax(&mut self, depth: i32, is_max: bool) -> i32 {
+        let score = self.evaluate();
+
+        if score == 10 {
+            return score - depth;
+        }
+
+        if score == -10 {
+            return score + depth;
+        }
+
+        if !self.has_free_tiles() {
+            return 0;
+        }
+
+        if is_max {
+            let mut best = -1000;
+
+            for i in 0..3 {
+                for j in 0..3 {
+                    if self.field[i][j] == Tile::Free {
+                        self.field[i][j] = self.computer_tile;
+                        self.change_player();
+
+                        best = cmp::max(best, self.minimax(depth + 1, !is_max));
+
+                        self.field[i][j] = Tile::Free;
+                        self.change_player();
+                    }
+                }
+            }
+
+            best
+        } else {
+            let mut best = 1000;
+
+            for i in 0..3 {
+                for j in 0..3 {
+                    if self.field[i][j] == Tile::Free {
+                        self.field[i][j] = self.player_tile;
+                        self.change_player();
+
+                        best = cmp::min(best, self.minimax(depth + 1, !is_max));
+
+                        self.field[i][j] = Tile::Free;
+                        self.change_player();
+                    }
+                }
+            }
+
+            best
+        }
+    }
 }
 
 impl Board {
@@ -98,33 +195,6 @@ impl Board {
         }
     }
 
-    fn computer_move(&mut self) {
-        if !self.has_free_tiles() {
-            panic!("No free tiles!");
-        }
-
-        let mut best_val = -1000;
-        let mut best_move = (0, 0);
-
-        for i in 0..3 {
-            for j in 0..3 {
-                if self.field[i][j] == Tile::Free {
-                    self.field[i][j] = self.computer_tile;
-
-                    let move_val = self.minimax(0, false);
-
-                    self.field[i][j] = Tile::Free;
-
-                    if move_val > best_val {
-                        best_move = (i, j);
-                        best_val = move_val;
-                    }
-                }
-            }
-        }
-
-        self.make_move(best_move, self.computer_tile)
-    }
     fn computer_player_move(&mut self) {
         if !self.has_free_tiles() {
             panic!("No free tiles!");
@@ -151,73 +221,11 @@ impl Board {
 
         self.make_move(best_move, self.player_tile)
     }
-
-    fn evaluate(&self) -> i32 {
-        match self.analyse() {
-            Some(GameState::Win(Move::Computer)) => 10,
-            Some(GameState::Win(Move::Player)) => -10,
-            _ => 0,
-        }
-    }
     fn evaluate_player(&self) -> i32 {
         match self.analyse() {
             Some(GameState::Win(Move::Player)) => 10,
             Some(GameState::Win(Move::Computer)) => -10,
             _ => 0,
-        }
-    }
-
-    fn minimax(&mut self, depth: i32, is_max: bool) -> i32 {
-        let score = self.evaluate();
-
-        if score == 10 {
-            return score - depth;
-        }
-
-        if score == -10 {
-            return score + depth;
-        }
-
-        if !self.has_free_tiles() {
-            return 0;
-        }
-
-        if is_max {
-            let mut best = -1000;
-
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.computer_tile;
-                        self.change_player();
-
-                        best = cmp::max(best, self.minimax(depth + 1, !is_max));
-
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
-                    }
-                }
-            }
-
-            best
-        } else {
-            let mut best = 1000;
-
-            for i in 0..3 {
-                for j in 0..3 {
-                    if self.field[i][j] == Tile::Free {
-                        self.field[i][j] = self.player_tile;
-                        self.change_player();
-
-                        best = cmp::min(best, self.minimax(depth + 1, !is_max));
-
-                        self.field[i][j] = Tile::Free;
-                        self.change_player();
-                    }
-                }
-            }
-
-            best
         }
     }
     fn minimax_player(&mut self, depth: i32, is_max: bool) -> i32 {
@@ -419,7 +427,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Board, GameState, Move, Tile};
+    use crate::{Board, GameState, MinimaxGame, Move, Tile};
 
     #[test]
     fn test_win_move() {
@@ -435,7 +443,7 @@ mod tests {
         };
         board.computer_move();
         println!("{}", board);
-        assert!(board.field[0][0] == Tile::X);
+        assert!(board.field[0][0] == board.computer_tile);
     }
 
     #[test]
@@ -452,13 +460,13 @@ mod tests {
         };
         board.computer_move();
         println!("{}", board);
-        assert!(board.field[1][0] == Tile::X);
+        assert!(board.field[1][0] == board.computer_tile);
     }
 
     #[test]
     fn pc_vs_pc() {
         let first_moves = vec![0, 1, 2, 3, 4, 5, 6, 7, 8];
-        //let results = vec![];
+        let mut results: Vec<GameState> = vec![];
         for first_move in first_moves {
             let row = first_move / 3;
             let col = first_move % 3;
@@ -472,7 +480,7 @@ mod tests {
                 computer_tile: Tile::X,
                 player_tile: Tile::O,
             };
-            board.field[row][col] = Tile::O;
+            board.field[row][col] = board.player_tile;
             for _ in 0..8 {
                 match board.current_move {
                     Move::Player => {
@@ -485,14 +493,9 @@ mod tests {
                 board.change_player();
             }
 
-            match board.analyse() {
-                Some(GameState::Win(Move::Computer)) => println!("computer"),
-                Some(GameState::Win(Move::Player)) => println!("player"),
-                Some(GameState::Draw) => println!("draw"),
-                None => {
-                    panic!("No way");
-                }
-            }
+            results.push(board.analyse().unwrap());
         }
+
+        assert!(results.iter().any(|r| *r == GameState::Draw));
     }
 }
