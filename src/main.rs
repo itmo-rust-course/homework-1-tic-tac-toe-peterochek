@@ -228,7 +228,7 @@ impl fmt::Display for Board {
             }
         }
 
-        write!(f, "{}", repr).expect("failed to represent Board");
+        write!(f, "{repr}").expect("failed to represent Board");
 
         Ok(())
     }
@@ -272,7 +272,7 @@ fn main() {
                 break first_move;
             }
             Err(error) => {
-                println!("Input player: {}", error)
+                println!("Input player: {error}")
             }
         };
     };
@@ -285,7 +285,7 @@ fn main() {
     };
 
     println!("Current board configuration:");
-    println!("{}", board);
+    println!("{board}");
 
     let game_result: GameState = loop {
         println!("{:?}'s move: ", board.current_move);
@@ -306,7 +306,7 @@ fn main() {
                     match board.check_move((row, col)) {
                         Ok((row, col)) => break (row, col),
                         Err(err) => {
-                            println!("Move input error: {}", err);
+                            println!("Move input error: {err}");
                             continue;
                         }
                     }
@@ -319,7 +319,7 @@ fn main() {
         }
 
         println!("Current board configuration:");
-        println!("{}", board);
+        println!("{board}");
 
         break match board.analyse() {
             Some(GameState::Win(Move::Computer)) => GameState::Win(Move::Computer),
